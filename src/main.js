@@ -4,36 +4,36 @@ const app = new Koa()
 
 const json = require('koa-json')
 const bodyparser = require('koa-bodyparser')
-const onerror = require('koa-onerror')
-onerror(app)
-
+const koajwt = require('koa-jwt')
 const log = require('./utils/log')
 
-
-const index = require('./router/index')
-const users = require('./router/users')
-
-
-// middlewares
 app.use(json())
 app.use(bodyparser())
-app.use(require('koa-static')(__dirname + '/public'))
+app.use(require('koa-static')(__dirname + '../public'))
 
-app.use(() => {
-  ctx.body = "1111"
-})
+const tools = require('./utils/tools')
 
 app.use(async (ctx, next) => {
-  await next()
+  log.info(`query传参${JSON.stringify(ctx.request.body)}`)
+  await next().catch(err => {
+    if (err.status == '401') {
+      ctx.status = 200
+      ctx.body = tools.fail('Token认证失败', tools.CODE.AUTH_ERROR)
+    } else {
+      throw err
+    }
+  })
 })
 
-// routes
-app.use(index.routes(), index.allowedMethods())
-app.use(users.routes(), users.allowedMethods())
+app.use(koajwt({ secret: 'coderzhr' }).unless({
+  path: [/login/]
+}))
+// 验证token是否失效，失效会抛出异常status改为401
 
-// error-handling
-app.on('error', (err, ctx) => {
-  log.error(err.message)
-});
+
+const useRegister = require('./app/index.js')
+
+app.useRegister = useRegister
+app.useRegister()
 
 module.exports = app
